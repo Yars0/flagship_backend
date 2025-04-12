@@ -4,10 +4,15 @@ from .database import engine, get_db
 from . import models
 from threading import Thread
 import uvicorn
+from .auth import router as auth_router
+from .organizations import router as org_router
 from bot import send_login_2fa_buttons
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+app.include_router(auth_router)
+app.include_router(org_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,12 +26,5 @@ app.add_middleware(
 async def status():
     return {"status": "alive"}
 
-@app.get("/tg")
-async def test_tg_inline():
-    send_login_2fa_buttons("7810898438")
-    return {"link": "https://t.me/flagship01_bot"}
-
-
-
 def run_fastapi():
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8080)

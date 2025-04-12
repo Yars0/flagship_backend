@@ -11,6 +11,25 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
 
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+    phone: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class VerifyLoginRequest(BaseModel):
+    session_token: str
+
+class CheckTelegramRequest(BaseModel):
+    email: str
+
+class ConfirmRequest(BaseModel):
+    code: str
+
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, min_length=5, max_length=20)

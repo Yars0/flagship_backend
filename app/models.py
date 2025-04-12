@@ -1,7 +1,10 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, TIMESTAMP, Enum
+from sqlalchemy import (Column, Integer, String, Text,
+    ForeignKey, TIMESTAMP, Enum, Boolean, DateTime)
 from sqlalchemy.sql import func
 from .database import Base
 from .enums import UserRole, DocumentStatus, InviteStatus
+from datetime import datetime, timedelta
+from sqlalchemy.orm import relationship
 
 class User(Base):
     __tablename__ = "users"
@@ -12,7 +15,6 @@ class User(Base):
     name = Column(String(255), nullable=False)
     password_hash = Column(Text, nullable=False)
     telegram_id =  Column(String(30))
-    auth_tg_code = Column(Integer)
 
 class Organization(Base):
     __tablename__ = "organizations"
@@ -66,6 +68,18 @@ class Signature(Base):
         {'sqlite_autoincrement': True},
     )
 
+class LoginSession(Base):
+    __tablename__ = 'login_sessions'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    session_token = Column(String(64), unique=True)
+    is_confirmed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=func.now())
+    expires_at = Column(DateTime, default=lambda: datetime.now() + timedelta(minutes=10))
+
+    user = relationship("User")
+
 class Invite(Base):
     __tablename__ = "invites"
 
@@ -74,3 +88,13 @@ class Invite(Base):
     email_or_phone = Column(String(255), nullable=False)
     token = Column(String(64), unique=True, nullable=False)
     status = Column(Enum(InviteStatus), default=InviteStatus.PENDING)
+
+class ConfirmationCode(Base):
+    __tablename__ = 'confirmation_codes'
+
+    id = Column(Integer, primary_key=True)
+    email = Column(String(255), nullable=False)
+    code = Column(String(6), nullable=True)
+    expires_at = Column(TIMESTAMP, default=lambda: datetime.now() + timedelta(minutes=15))
+    is_used = Column(Boolean, default=False)
+    telegram_verified = Column(Boolean, default=False)
