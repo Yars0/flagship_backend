@@ -6,3 +6,5 @@ psycopg2-binary
 passlib
 python-jose
 python-multipart
+telebot
+thread

@@ -11,6 +11,8 @@ class User(Base):
     phone = Column(String(20), unique=True, nullable=False)
     name = Column(String(255), nullable=False)
     password_hash = Column(Text, nullable=False)
+    telegram_id =  Column(String(30))
+    auth_tg_code = Column(Integer)
 
 class Organization(Base):
     __tablename__ = "organizations"
