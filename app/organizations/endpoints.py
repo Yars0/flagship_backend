@@ -1,159 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
-from .database import get_db
+from ..auth.security import verify_token
+from ..database import get_db
 from .schemas import (
     OrganizationsResponse, DepartmentsResponse,
     UsersResponse, DocumentIdResponse,
     SearchUserRequest, AddUserRequest,
     CreateDocumentRequest, SubscribeDocumentRequest,
-    DocumentsResponse, SuccessResponse
+    DocumentsResponse
 )
-from .models import (
+from ..models import (
     Organization, Department, User,
     UserOrganization, UserDepartmentRole,
     Document, Signature
 )
-from .auth import oauth2_scheme
-from pydantic import BaseModel
-from jose import JWTError, jwt
-from dotenv import load_dotenv
-import os
-load_dotenv()
 
-router = APIRouter(prefix="/api/organizations")
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "mega-secret-key")
-ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-
-
-def verify_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email = payload.get("sub")
-        user = db.query(User).filter(User.email == email).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
-            )
-
-        return {
-            "user_id": user.id,  
-            "is_admin": payload.get("is_admin", False)
-        }
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
-
-class NewOrganizationRequest(BaseModel):
-    name: str
-    token: str
-
-class NewDepartmentRequest(BaseModel):
-    name: str
-
-def get_current_user(db: Session, token: str):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        email = payload.get("sub")
-        if email is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        user = db.query(User).filter(User.email == email).first()
-        if user is None:
-            raise HTTPException(status_code=401, detail="User not found")
-        return user
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-@router.post("/new")
-async def create_organization(
-    request: NewOrganizationRequest,
-    db: Session = Depends(get_db)
-):
-    user = get_current_user(db, request.token)
-
-    org = Organization(name=request.name, owner_id=user.id)
-    db.add(org)
-    db.commit()
-    db.refresh(org)
-
-    user_org = UserOrganization(user_id=user.id, organization_id=org.id)
-    db.add(user_org)
-    db.commit()
-
-    return {"status": "success", "id": org.id}
-
-@router.get("/{org_id}")
-async def get_organization(org_id: int, db: Session = Depends(get_db)):
-    org = db.query(Organization).filter(Organization.id == org_id).first()
-    if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
-
-    dept_count = db.query(Department).filter(
-        Department.organization_id == org_id
-    ).count()
-
-    emp_count = db.query(UserOrganization).filter(
-        UserOrganization.organization_id == org_id
-    ).count()
-
-    return {
-        "organizations": [{
-            "id": org.id,
-            "name": org.name,
-            "departments_count": dept_count,
-            "employees_count": emp_count
-        }]
-    }
-
-@router.post("/{org_id}/departments/new")
-async def create_department(
-    org_id: int,
-    request: NewDepartmentRequest,
-    db: Session = Depends(get_db)
-):
-    org = db.query(Organization).filter(Organization.id == org_id).first()
-    if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
-
-    dept = Department(name=request.name, organization_id=org_id)
-    db.add(dept)
-    db.commit()
-    db.refresh(dept)
-
-    return {
-        "success": True,
-        "id_organization": org_id,
-        "id_depatrament": dept.id
-    }
-
-@router.get("/{org_id}/departments/{dep_id}")
-async def get_department(
-    org_id: int,
-    dep_id: int,
-    db: Session = Depends(get_db)
-):
-    dept = db.query(Department).filter(
-        Department.id == dep_id,
-        Department.organization_id == org_id
-    ).first()
-
-    if not dept:
-        raise HTTPException(status_code=404, detail="Department not found")
-
-    emp_count = db.query(UserDepartmentRole).filter(
-        UserDepartmentRole.department_id == dep_id
-    ).count()
-
-    return {
-        "departaments": [{
-            "id": dept.id,
-            "name": dept.name,
-            "employees_count": emp_count
-        }]
-    }
-
+router = APIRouter(prefix="/api", tags=["organizations"])
 
 @router.post("/organizations/get", response_model=OrganizationsResponse)
 def get_user_organizations(
@@ -408,34 +270,6 @@ def subscribe_document(
     token_data: dict = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
-    # Находим подпись, которую нужно подтвердить
     signature = db.query(Signature).filter(
         Signature.document_id == request.document_id,
-        Signature.signer_id == token_data["user_id"],
-        Signature.status == "pending"
-    ).first()
-
-    if not signature:
-        return SuccessResponse(
-            success=False,
-            error="Document not found or already signed"
-        )
-
-    signature.status = "signed"
-    signature.signed_at = datetime.utcnow()
-
-    pending_signatures = db.query(Signature).filter(
-        Signature.document_id == request.document_id,
-        Signature.status == "pending"
-    ).count()
-
-    if pending_signatures == 0:
-        document = db.query(Document).get(request.document_id)
-        document.status = "signed"
-
-    db.commit()
-
-    return SuccessResponse(
-        success=True,
-        message="Document signed successfully"
-    )
+        Signature.signer_id == token_data["user_id

@@ -27,4 +27,4 @@ async def status():
     return {"status": "alive"}
 
 def run_fastapi():
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8080)
+    uvicorn.run("app.main:app", host="26.81.14.93", port=8080)
